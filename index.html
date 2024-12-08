@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trans HRT and Skin Research Papers</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+</head>
+<body class="bg-gray-50">
+    <div class="max-w-4xl mx-auto p-4 sm:p-6">
+        <h1 class="text-2xl sm:text-3xl font-bold mb-6">Trans HRT and Skin Research Papers</h1>
+        
+        <input 
+            type="text" 
+            id="searchInput" 
+            placeholder="Search papers..." 
+            class="w-full p-2 mb-6 border rounded-lg"
+        >
+
+        <div id="papers" class="space-y-6">
+            <!-- Papers will be inserted here -->
+        </div>
+    </div>
+
+    <script>
+        // Safely escape HTML to prevent XSS
+        function escapeHTML(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // Format authors safely
+        function formatAuthors(authors) {
+            if (!authors) return '';
+            return authors.split(';')
+                .map(author => escapeHTML(author.trim()))
+                .filter(author => author) // Remove empty entries
+                .join(', ');
+        }
+
+        // Create paper HTML with escaped content
+        function createPaperHTML(paper) {
+            const title = escapeHTML(paper.Title || '');
+            const year = escapeHTML(paper['Publication Year'] || '');
+            const plainExplanation = escapeHTML(paper['Plain english explanation of abstract (AI generated)'] || '');
+            const abstract = escapeHTML(paper.ABSTRACT_TEXT || '');
+            const pubTitle = escapeHTML(paper['Publication Title'] || '');
+            const url = paper.Url ? escapeHTML(paper.Url) : '';
+            
+            return `
+                <div class="border rounded-lg p-4 sm:p-6 bg-white shadow-sm">
+                    <div class="flex flex-wrap justify-between items-start mb-2">
+                        <h2 class="text-lg sm:text-xl font-semibold flex-grow pr-4">${title}</h2>
+                        <span class="text-gray-500">${year}</span>
+                    </div>
+
+                    <p class="text-gray-600 mb-4">${formatAuthors(paper.Author)}</p>
+
+                    <div class="bg-gray-50 rounded p-4 mb-4">
+                        <h3 class="font-semibold mb-2">Plain English Summary</h3>
+                        <p class="text-gray-700 whitespace-pre-line">${plainExplanation}</p>
+                    </div>
+
+                    ${url ? `
+                        <a href="${url}" 
+                           target="_blank" 
+                           rel="noopener noreferrer" 
+                           class="text-blue-600 hover:text-blue-800 mb-4 inline-block">
+                            View Paper →
+                        </a>
+                    ` : ''}
+
+                    <button 
+                        onclick="toggleAbstract(this)" 
+                        class="text-gray-500 hover:text-gray-700 mt-2 focus:outline-none"
+                        data-expanded="false">
+                        Show More ▼
+                    </button>
+
+                    <div class="hidden mt-4 space-y-4">
+                        <div>
+                            <h3 class="font-semibold mb-2">Abstract</h3>
+                            <p class="text-gray-700 whitespace-pre-line">${abstract}</p>
+                        </div>
+                        
+                        <div>
+                            <h3 class="font-semibold mb-2">Citation</h3>
+                            <p class="text-gray-700">
+                                ${formatAuthors(paper.Author)} (${year}). 
+                                ${title}. ${pubTitle}.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function toggleAbstract(button) {
+            const expanded = button.getAttribute('data-expanded') === 'true';
+            const content = button.nextElementSibling;
+            
+            content.classList.toggle('hidden');
+            button.textContent = expanded ? 'Show More ▼' : 'Show Less ▲';
+            button.setAttribute('data-expanded', !expanded);
+        }
+
+        function filterPapers(papers, searchTerm) {
+            if (!searchTerm) return papers;
+            
+            searchTerm = searchTerm.toLowerCase();
+            return papers.filter(paper => 
+                (paper.Title || '').toLowerCase().includes(searchTerm) ||
+                (paper.Author || '').toLowerCase().includes(searchTerm) ||
+                (paper.ABSTRACT_TEXT || '').toLowerCase().includes(searchTerm) ||
+                (paper['Plain english explanation of abstract (AI generated)'] || '').toLowerCase().includes(searchTerm)
+            );
+        }
+
+        // Load and parse CSV with proper configuration
+        Papa.parse('papers.csv', {
+            download: true,
+            header: true,
+            skipEmptyLines: true,
+            complete: function(results) {
+                const papers = results.data;
+                const papersContainer = document.getElementById('papers');
+                const searchInput = document.getElementById('searchInput');
+                
+                function renderPapers(filtered) {
+                    papersContainer.innerHTML = filtered
+                        .map(paper => createPaperHTML(paper))
+                        .join('');
+                }
+
+                // Initial render
+                renderPapers(papers);
+
+                // Debounced search
+                let searchTimeout;
+                searchInput.addEventListener('input', (e) => {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => {
+                        const filtered = filterPapers(papers, e.target.value);
+                        renderPapers(filtered);
+                    }, 300);
+                });
+            },
+            error: function(error) {
+                console.error('Error loading papers:', error);
+                document.getElementById('papers').innerHTML = `
+                    <div class="text-red-600 p-4">
+                        Error loading papers. Please try refreshing the page.
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>
